@@ -1,0 +1,493 @@
+---
+title: "Relatorio_Rafael_Reis"
+author: "Rafael d'Angelo Reis Pereira da Silva"
+date: '2022-08-04'
+output:
+  word_document: default
+  pdf_document: default
+---
+
+
+```{r,include=FALSE}
+
+library(corrplot)
+library("ggplot2")
+library("MASS")
+library("readxl")
+library("lindia")
+library("faraway")
+library(gridExtra)
+```
+
+# 1  Introdução
+
+Utilizaremos para a seguinte análise o banco de dados referente aos preços médios de residências em Boston, Massachusetts, e principalmente como os preços e a demanda por casas podem ser afetadas pela poluição no ar.
+
+Realizaremos diversas análises derivadas da análise de regressão linear para tentarmos encontrar o melhor modelo que possa nos justificar os preços encontrados para residências em Boston.
+
+Nosso banco de dados provém de um total de 13 variáveis explicativas e uma variável resposta, todas descritas a seguir em ordem:
+
+⠀
+
+**Variáveis Explicativas**
+
+1) CRIM: taxa de criminalidade per capita dos bairros
+
+2) ZN: proporção de terrenos residenciais zoneados para lotes acima de 25.000 sq.ft.
+
+3) INDUS: proporção de acres de negócios não varejistas por bairro
+
+4) CHAS: variável dummy relacionada ao Rio Charles (1 em caso do rio passar próximo; 0 caso contrário)
+
+5) NOX: concentração de óxidos nítricos (partes por 10 milhões) [parts/10M]
+
+6) RM: número médio de quartos por habitação
+
+7) AGE: proporção de unidades ocupadas pelos proprietários construídas antes de 1940
+
+8) DIS: distâncias ponderadas para cinco centros de emprego de Boston
+
+9) RAD: índice de acessibilidade às rodovias radiais
+
+10) TAX: taxa de imposto de propriedade de valor total por US$ 10.000 [US$/10l]
+
+11) PTRATIO: relação aluno-professor por cidade
+
+12) B: O resultado da equação B=1000(Bk - 0,63)^2 onde Bk é a proporção de negros por cidade
+
+13) LSTAT: % status mais baixo da população (proporção de adultos sem níveis altos de escolaridade)
+
+**Variável Resposta**
+
+1) MEDV: Valor médio das casas ocupadas pelos proprietários em $ 1.000 [k$]
+
+⠀
+
+É notável a atenção da volatividade dos dados aqui estudados. O mercado residencial norte-americano vem enfrentando uma evidente crise nos últimos anos relativa ao número de casas disponíveis em relação a quantidade de pessoas com a renda suficiente para comprá-las. Este estudo não busca se aprofundar severamente neste assunto, mas é recomendada certa noção de que nossa variável resposta pode não ser tão fácil de ser analisada completamente enquanto ignoramos fatores socio-econômicos importantes.
+
+# 2  Analise Exploratoria
+
+Aqui tentaremos encontrar relações e comparações entre as variáveis de nosso banco de dados de forma que possamos visualizar como elas interagem entre si.
+
+```{r,include=FALSE,echo=FALSE}
+
+dado <- read.csv("boston.csv")
+
+head(dado)
+
+attach(dado)
+
+
+```
+
+## Gráfico de correlações
+
+```{r,echo=FALSE}
+
+corre <- cor(dado[,1:14])
+
+corrplot(corre, method = "circle")
+
+```
+
+Aqui já podemos perceber algumas correlações que podemos considerar importantes para nossa análise, como por exemplo como a proporção de adultos sem ensino superior afeta negativamente o preço das residências da região, entre outros pontos interessantes.
+
+```{r,echo=FALSE}
+
+plot(LSTAT, MEDV,main = "Como baixo nível de ensino afeta preço de moradias")
+
+```
+
+Percebemos aqui a correlação negativa vista no gráfico anterior.
+
+```{r,echo=FALSE}
+
+plot(RAD,NOX,main = "Nívels de NO próximos de rodovias")
+
+```
+
+Um pouco mais difícil de se visualizar devido à natureza da variável RAD, mas é possível perceber uma relação positiva entre a acessibilidade à rodovias e os níveis de óxidos nítricos no ar, estes derivados principalmente de automóveis como carros e caminhões.
+
+```{r,echo=FALSE}
+
+dadob<-dado
+quanti<-as.numeric(quantile(dadob$TAX))
+dadob$TAX[which(dado$TAX<quanti[2] & dado$TAX>=quanti[1])]<-"279 ou menos dolares"
+dadob$TAX[which(dado$TAX<quanti[3] & dado$TAX>=quanti[2])]<-"entre 279 e 330 dolares"
+dadob$TAX[which(dado$TAX<quanti[4] & dado$TAX>=quanti[3])]<-"entre 330 e 666 dolares"
+dadob$TAX[which(dado$TAX<=quanti[5] & dado$TAX>=quanti[4])]<-"entre 666 e 711 dolares"
+
+```
+
+```{r,echo=FALSE}
+
+plot(AGE,NOX, col =  factor(dadob$TAX),pch = 16,main = "Idade x NO x impostos")
+legend("topleft", unique(dadob$TAX),col=1:length(unique(dadob$TAX)),pch=1, cex = 0.7)
+
+```
+
+Podemos analisar diversos fatores deste gráfico. Primeiro podemos perceber como os níveis de óxidos nítricos aumentam quando analisamos áreas com grandes proporções de residências antigas. Isso muito provavelmente se dá pelo fato de que estas áreas agora se instalaram como áreas residenciais onde um grande número de automóveis transitam diariamente, assim elevando os níveis de NO. Podemos também notar como as taxas de impostos para residências em áreas com altos níveis de NO são mais elevadas.
+
+```{r,echo=FALSE}
+plot(NOX,TAX)
+```
+
+Aqui vemos em outro ângulo a reçação do nível de NO no ar e como isso afeta o valor dos impostos pagos na região.
+
+# 3  Regressão Linear e Seleção de Variáveis
+
+Agora veremos como podemos realizar uma regressão linear para explicarmos como encontramos de forma eficiente nossa variável resposta MEDV. 
+
+Como é de se imaginar, testar todas as possibilidades de modelos com nosso número considerável de variáveis seria impossível, então para facilitar nosso trabalho utilizamos o método Stepwise via AIC. Esse método avaliará os p-valores de cada variável em comparação a um $alpha$ específico (em nosso caso utilizamos nível de significância de 5%)
+
+Os códigos para nossa análise podem ser encontrados no apêndice 3.1 ao final do relatório. 
+
+```{r,include=FALSE,echo=FALSE}
+
+nulo = lm(MEDV~1,data=dado)
+completo = lm(MEDV~.,data=dado)
+
+step(completo, data=dado, direction="backward",trace=FALSE)
+
+step(nulo, scope=list(lower=nulo, upper=completo),data=dado,direction="forward",trace=FALSE)
+
+step(completo, data=dado, direction="both",trace=FALSE)
+
+reg <- lm(MEDV ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT, data = dado)
+
+```
+
+```{r,echo=FALSE}
+
+summary(reg)
+
+```
+
+As variáveis selecionadas foram CRIM, ZN, CHAS, NOX, RM, DIS, RAD, TAX, PTRATIO, B e LSTAT.
+
+Por nossa análise nos conseguimos encontrar o seguinte modelo com essas variáveis: 
+
+$Y = 36.34 - 0.108x_2 + 0.045x_3 + 2.72x_4 -17.38x_5 +3.8x_6 - 1.49x_7 + 0.3x_8 - 0.12x_9 -0.95x_{10}+0.009x_{11}-0.522x_{12}$
+
+# 4  Residuos
+
+Para analisarmos se nosso modelo proposto é de fato o ideal para explicarmos os preços médios de residências em Boston, podemos analisar os resíduos que nosso modelo causa. 
+
+```{r,echo=FALSE}
+
+
+plot(fitted(reg) ,residuals(reg), xlab = "valores ajustados", ylab = "residuos",main = "Variância dos Resíduos")
+
+```
+
+Para um bom modelo buscamos que a variância de nossos resíduos se situem entre 3 e -3. Como podemos ver em nosso gráfico, isso está longe de ser verdade. 
+
+```{r, include = TRUE, echo = FALSE}
+
+par(mfrow=c(1,2))
+qqnorm(residuals(reg))
+qqline(residuals(reg))
+hist(residuals(reg))
+
+```
+
+Analisamos então a normalidade de nosso modelo e também nos encontramos com resultados muito abaixo do esperado ou desejado. 
+
+Para buscar resultados mais satisfatórios para nosso modelo, devemos então tentar realizar uma transformação em nossa variável resposta.
+
+# 5  Transformação
+
+Realizamos nossa transformação via Procedimento de Box COX, e os códigos podem ser vistos no apêndice 5.1.
+
+```{r,echo=FALSE}
+
+par(mfrow = c(1, 2))
+boxcox(reg)
+boxcox(reg, lambda = seq(0, 0.5, by = 0.01))
+
+##0.08555
+
+```
+
+Note que nossos gráficos mostram os valores da log-verossimilhança para um intervalo de valores do parâmetro de transformação λ. O máximo da verossimilhança foi atingido com aproximadamente λ = 0.1162, com intervalo de confiança distante de 1. Com isso, há forte evidência da necessidade de transformação na variável resposta MEDV, dado por: MEDV* = (MEDV * 0.1162 − 1) / 0.1162, Sendo assim a nossa nova variável transformada deve ser inserida no banco de dados, para que o novo modelo de regressão linear simples seja ajustado.
+
+```{r,include=FALSE,echo=FALSE}
+
+MEDVtrans <- ((MEDV^0.1162)-1)/0.1162
+regtrans <- data.frame(cbind(dado,MEDVtrans))
+
+reg2 <- lm(MEDVtrans ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT)
+
+```
+
+```{r,echo=FALSE}
+
+summary(reg2)
+
+```
+
+Nosso modelo transformado utiliza das mesmas variáveis mas agora é apresentado como:
+
+$Y = 5.076 - 0.014x_2 + 0.002x_3 + 0.15x_4 -1.04x_5 +0.14x_6 - 0.076x_7 + 0.019x_8 - 0.0008x_9 -0.054x_{10}+0.0006x_{11}-0.04x_{12}$
+
+```{r,echo=FALSE}
+
+
+plot(fitted(reg2) ,residuals(reg2), xlab = "valores ajustados", ylab = "residuos",main = "Variância dos Resíduos")
+
+```
+
+
+```{r, include = TRUE, echo = FALSE}
+
+par(mfrow=c(1,2))
+qqnorm(residuals(reg2))
+qqline(residuals(reg2))
+hist(residuals(reg2))
+
+```
+
+Infelizmente mesmo após extensivo trabalho relacionado às transformações, nosso modelo final ainda não é como desejávamos. A variância dos residuos de fato diminuiu e se instalou entre 3 e -3, apesar de que parece ainda não se apresentar de forma totalmente aleatória. Da mesma forma, a normalidade do modelo não foi alcançada em níveis ideais.
+
+Diferentes versões do modelo apresentado foram testadas e incansáveis testes foram feitos em busca de algum que conseguísse nos entregar os resultados desejados, mas não importa o quão fundo procurávamos, os outros modelos possíveis eram ainda piores do que o nosso atual. 
+
+Mais análises seriam feitas a seguir em relação à multicolinearidade e uma conclusão sobre qual modelo devemos usar será feita ao seu fim.
+
+# 6  Multicolinearidade
+
+Para decidirmos de vez se nosso modelo é de fato o melhor para o banco de dados em questão, buscamos então realizar testes para verificar a existência de Multicolinearidade. Fizemos isso primeiro analisando a correlação das variáveis de nosso modelo, após disso nós calculamos o vif de cada uma e de nosso modelo. Os códigos para a análise em questão podem ser encontrados no apêndice 6.1 ao final do relatório.
+
+```{r,echo=FALSE}
+
+corre2 <- cor(dado[,c(1,2,4,5,6,8,9,10,11,12,13)])
+
+corrplot(corre2, method = "circle")
+
+x <- summary(reg2)$r.squared
+
+1/(1-x)
+
+```
+
+```{r,include=FALSE,echo=FALSE}
+
+vif(dado[,c(1,6,8,11,12,13)])
+
+x <- summary(reg2)$r.squared
+
+1/(1-x)
+
+```
+
+Sabemos que são indícios de multicolinearidade caso alguma correlação entre as variáveis se aproxime de 1 ou -1, assim como se o VIF for maior que 5. 
+
+Por mais que tenhamos de fato visualizado correlações que nos chamem atenção, não foi possível realizar futuras transformações e modificações ao modelo em questão. 
+
+Não tendo acesso à uma das principais maneiras de se lidar com multicolinearidade, esta sendo a coleta de dados adicionais ou modificação da amostragem feita, nos limitamos ao banco de dados que já temos. Infelizmente, ao tentarmos outras permutações das variáveis, nosso modelo só ficava cada vez pior, apresentando diversos problemas no que as variáveis estavam fortemente ligadas umas às outras. Caso retirássemos alguma variável que estivesse causando a multicolinearidade, não só estaríamos perdendo grande significado na análise de nosso modelo em questão, como diversas outras variáveis estariam deixando de ser significativas, eventualmente causando nosso modelo a ficar ainda mais defasado. 
+
+Em conclusão, após análise de resíduos e multicolinearidade, nos encontramos com nosso modelo transformado que foi visto anteriormente, sendo considerado o mais decente que conseguimos encontrar. É notável, ao menos, que nosso VIF encontrado foi pequeno para todas as variáveis e nosso VIF total foi abaixo de 5. 
+
+
+# 7  Análise de Diagnóstico
+
+Vemos agora então como os pontos do nosso modelo, em busca de pontos de alavanca que possam influenciar as outras observações.
+
+```{r, echo=FALSE}
+df<-data.frame(obs = 1:nrow(dado),
+               hat = hatvalues(reg2))
+ggplot(df, aes(x=obs, y=hat))+
+  geom_point()+
+  geom_line(aes(y=2*11/nrow(dado)), col = "red")+
+  ggtitle("Grafico de alavanca")
+```
+
+Percebemos um número elevado de pontos influentes ao analisarmos nosso modelo. Podemos utilizar de diferentes métodos para percebelos:
+
+```{r, echo=FALSE}
+df<-data.frame(obs = 1:nrow(dado),
+               Cook = cooks.distance(reg2))
+ggplot(df, aes(x=obs, y=Cook))+
+  geom_point()+
+  ggtitle("Distancia de Cook")
+
+```
+
+Nenhum dos pontos ultrapassa 1, o que nos dá que pelo método de Cook não encontramos pontos influentes.
+
+```{r, echo=FALSE}
+df<-data.frame(obs = 1:nrow(dado),
+               dfbetas(reg2))
+
+
+
+plot1<- ggplot(df, aes(x=obs, y=X.Intercept.))+
+  geom_point(size=0.8)+
+  geom_line(aes(y=2/sqrt(nrow(dado))), col = "red")+
+  geom_line(aes(y=-2/sqrt(nrow(dado))), col = "red")+
+  ggtitle("Grafico de DFBetas")
+
+plot2 <-ggplot(df, aes(x=obs, y=NOX))+
+  geom_point(size=0.8)+
+  geom_line(aes(y=2/sqrt(nrow(dado))), col = "red")+
+  geom_line(aes(y=-2/sqrt(nrow(dado))), col = "red")+
+  ggtitle("Grafico de DFBetas")
+
+plot3 <-ggplot(df, aes(x=obs, y=PTRATIO))+
+  geom_point(size=0.8)+
+  geom_line(aes(y=2/sqrt(nrow(dado))), col = "red")+
+  geom_line(aes(y=-2/sqrt(nrow(dado))), col = "red")+
+  ggtitle("Grafico de DFBetas")
+
+plot4<-ggplot(df, aes(x=obs, y=LSTAT))+
+  geom_point(size=0.8)+
+  geom_line(aes(y=2/sqrt(nrow(dado))), col = "red")+
+  geom_line(aes(y=-2/sqrt(nrow(dado))), col = "red")+
+  ggtitle("Grafico de DFBetas")
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
+
+```
+
+Buscamos aqui pontos influentes caso retiremos algumas variáveis específicas de nosso modelo, assim como o intercepto. 
+Pelo número exorbitante de pontos influentes, nos encontramos incapazes de retirá-los do banco de dados para uma segunda análise. 
+
+# 8  Análise de variancia
+
+Analisaremos agora a variância de nosso modelo como um todo, em busca de testar novamente o quão significativo ele é agora que foi transformado. Poderíamos ter feito análise para nosso primeiro modelo criado, mas como vimos que os dados ainda não estavam limpos foi desejado realizar todas as etapas até então para encontrarmos o modelo ideal para tal. Os códigos utilizados para a criação da tabela a seguir podem ser encontrados no apêndice 8.1 ao final do relatório.
+
+```{r,include=FALSE,echo=FALSE}
+
+n<-nrow(dado)
+p<-12
+
+anova(reg2)
+
+SQReg2<-133.12
+QMReg2<-SQReg2/(p-1)
+QMReg2
+SQRes2<-35.73
+QMRes2<-SQRes2/(n-p)
+QMRes2
+SQT2<-SQReg2 + SQRes2
+SQT2
+QMT2<-SQT2/(n-1)
+QMT2
+EstF2<-QMReg2/QMRes2
+EstF2
+
+
+qf(.95,p-1,n-p)
+
+summary(reg2)$r.squared
+
+
+```
+
+Comparando nossa estatística encontrada com o ponto crítico da f (1.808), percebemos que de fato nosso modelo é significativo.
+
+Calculamos tmb o coeficiente de determinação (R²) que nos deu 0.788. Isso nos diz que a proporção da variabilidade da varável resposta que é explicada pelo nosso modelo de regressão é, aproximadamente, de 78.8%.
+
+A proporção encontrada não é completamente ideal, mas considerando nosso modelo e todos os problemas encontrados até então, podemos considerar que é suficiente.
+
+# 9  Intervalo de Confiança
+
+Por fim podemos ver que os intervalos de confiança baseados na estatística t são então:
+
+```{r,echo=FALSE}
+
+round(confint(reg2),5)
+
+```
+
+# 10  Conclusão 
+
+Como foi previsto ao início de nosso trabalho, percebemos que análises relacionadas ao custo de residências em Boston podem não ser tão fáceis de serem feitas. Com a crise imobiliaria nos Estados Unidos ainda crescente, teríamos de realizar análises muito mais complexas envolvendo um número talvez ainda maior de variáveis e observações. É possível também que uma regressão linear por sí própria não seja o bastante para explicarmos a variável resposta desejada pelo banco de dados, mas este trabalho não se propoz a se a profundar nesta questão. 
+
+Foi visto que mesmo analisando cada faceta de nosso modelo ideal, ele ainda apresentava problemas intrinsecos em sua natureza. 
+
+O que conseguimos de resultados, por outro lado, foi que de fato o preço médio das residências na região estudada é influenciado por nossas variáveis escolhidas. Podemos concluir que de fato é justo dizer que a busca por ar limpo é um fator importante quando analisamos o custo médio de uma moradia, assim como os causadores de poluição próximos. 
+
+# Apêndices
+
+## 3.1
+
+```{r,eval=FALSE,include=TRUE}
+
+nulo = lm(MEDV~1,data=dado)
+completo = lm(MEDV~.,data=dado)
+
+step(completo, data=dado, direction="backward",trace=FALSE)
+
+step(nulo, scope=list(lower=nulo, upper=completo),data=dado,direction="forward",trace=FALSE)
+
+step(completo, data=dado, direction="both",trace=FALSE)
+
+reg <- lm(MEDV ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT, data = dado)
+
+summary(reg)
+
+```
+
+## 5.2
+
+```{r,eval=FALSE,include=TRUE}
+
+MEDVtrans <- ((MEDV^0.1162)-1)/0.1162
+regtrans <- data.frame(cbind(dado,MEDVtrans))
+head(regtrans)
+
+reg2 <- lm(MEDVtrans ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT)
+
+summary(reg2)
+
+```
+
+## 6.2
+
+```{r,eval=FALSE,include=TRUE}
+
+corre2 <- cor(dado[,c(1,2,4,5,6,8,9,10,11,12,13)])
+
+corrplot(corre2, method = "circle")
+
+vif(dado[,c(1,6,8,11,12,13)])
+
+x <- summary(reg2)$r.squared
+
+1/(1-x)
+
+```
+
+## 8.1
+
+```{r,eval=FALSE,include=TRUE}
+
+n<-nrow(dado)
+p<-12
+
+
+anova(reg2)
+
+SQReg2<-133.12
+QMReg2<-SQReg2/(p-1)
+SQRes2<-35.73
+QMRes2<-SQRes2/(n-p)
+SQT2<-SQReg2 + SQRes2
+QMT2<-SQT2/(n-1)
+EstF2<-QMReg2/QMRes2
+
+
+qf(.95,p-1,n-p)
+
+summary(reg2)$r.squared
+
+
+```
+
+
+
+
+
+
+
+
