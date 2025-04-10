@@ -1,6 +1,6 @@
 # Analise-de-Regressao-Boston-House-Prices
 
-Arquivos relacionados ao trabalho de Análise de Regressão Linear, com foco nos dados dos preços médios de residências em Boston, Massachusetts, e principalmente como os preços e a demanda por casas podem ser afetadas pela poluição no ar. Os dados foram extraídos de https://www.kaggle.com/datasets/fedesoriano/the-boston-houseprice-data. 
+Arquivos relacionados ao trabalho de Análise de Regressão Linear, com foco nos dados dos preços médios de residências em Boston, Massachusetts, e principalmente como os preços e a demanda por casas podem ser afetadas pela poluição no ar. Os dados foram extraídos de https://www.kaggle.com/datasets/fedesoriano/the-boston-houseprice-data, mas também estão disponíveis a partir do arquivo boston.csv. 
 
 O arquivo Boston_Prices.Rmd apresenta o markdown utilizado para coleta e análise dos dados, assim como conclusões tiradas a partir dos resultados. Para melhor leitura, também foi disponibilizado o arquivo Boston_Prices.pdf.
 
